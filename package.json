@@ -1,0 +1,53 @@
+{
+  "name": "colmado-erp",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3000",
+    "build": "prisma generate && next build",
+    "start": "next start -p 3000",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:push": "prisma db push",
+    "db:seed": "tsx prisma/seed.ts",
+    "check": "tsc --noEmit",
+    "test": "vitest run",
+    "postinstall": "prisma generate",
+    "desktop:prepare": "node scripts/prepare.cjs",
+    "dist": "npm run desktop:prepare && electron-builder --win nsis --x64",
+    "desktop": "electron ."
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1176.0",
+    "@aws-sdk/s3-request-presigner": "^3.1176.0",
+    "@prisma/client": "^6.19.0",
+    "bcryptjs": "^3.0.2",
+    "cloudinary": "^2.8.0",
+    "date-fns": "^4.1.0",
+    "dotenv": "^18.0.10",
+    "exceljs": "^4.4.0",
+    "jose": "^6.1.0",
+    "lucide-react": "^0.468.0",
+    "next": "^15.5.0",
+    "pdf-lib": "^1.17.1",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "recharts": "^2.15.0",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "autoprefixer": "^10.4.0",
+    "electron": "^35.7.5",
+    "electron-builder": "^26.0.12",
+    "postcss": "^8.4.0",
+    "prisma": "^6.19.0",
+    "tailwindcss": "^3.4.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.8.0",
+    "vitest": "^3.2.0"
+  },
+  "main": "desktop/main.cjs"
+}
