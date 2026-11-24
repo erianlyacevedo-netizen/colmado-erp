@@ -1,0 +1,2 @@
+import type {MetadataRoute} from 'next';
+export default function manifest():MetadataRoute.Manifest{return {name:'Colmado ERP',short_name:'Colmado ERP',description:'Inventario y punto de venta para colmados de República Dominicana',lang:'es',start_url:'/',display:'standalone',theme_color:'#124b7b',background_color:'#f4f7fa',icons:[{src:'/icon.svg',sizes:'any',type:'image/svg+xml',purpose:'any'}]};}

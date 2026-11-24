@@ -1,0 +1,8 @@
+import { NextResponse } from 'next/server';
+import { db } from '@/lib/db';
+import bcrypt from 'bcryptjs';
+import {tokenFor,cookieName,cookieOptions} from '@/lib/auth';
+import {AppError,fail,mutationGuard} from '@/lib/http';
+import {z} from 'zod';
+const schema=z.object({email:z.string().email(),password:z.string().min(1)});
+export async function POST(req:Request){try{await mutationGuard(req);const {email,password}=schema.parse(await req.json());const normalized=email.toLowerCase();const throttle=await db.loginThrottle.findUnique({where:{email:normalized}});if(throttle?.blockedUntil&&throttle.blockedUntil>new Date())throw new AppError(429,'Demasiados intentos. Prueba de nuevo dentro de 15 minutos.');if(throttle?.blockedUntil&&throttle.blockedUntil<=new Date())await db.loginThrottle.delete({where:{email:normalized}});const user=await db.user.findUnique({where:{email:normalized}});if(!user?.active||!(await bcrypt.compare(password,user.passwordHash))){const attempt=await db.loginThrottle.upsert({where:{email:normalized},create:{email:normalized,attempts:1},update:{attempts:{increment:1}}});if(attempt.attempts>=5)await db.loginThrottle.update({where:{email:normalized},data:{blockedUntil:new Date(Date.now()+15*60000)}});throw new AppError(401,'Correo o contraseña incorrectos.');}await db.loginThrottle.deleteMany({where:{email:normalized}});const response=NextResponse.json({user:{name:user.name,role:user.role}});response.cookies.set(cookieName,await tokenFor(user.id),cookieOptions);return response;}catch(e){if(e instanceof z.ZodError)return NextResponse.json({error:'Introduce un correo y una contraseña válidos.'},{status:400});return fail(e);}}

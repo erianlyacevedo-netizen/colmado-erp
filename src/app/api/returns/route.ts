@@ -1,0 +1,13 @@
+import {db} from '@/lib/db';
+import {authorize,branchOf,mutationGuard,assert,fail,json,audit} from '@/lib/http';
+import {z} from 'zod';
+import {money} from '@/lib/pricing';
+const schema=z.object({saleId:z.string(),reason:z.string().trim().min(5).max(400),restock:z.boolean().default(true)});
+export async function GET(){try{const u=await authorize();return json(await db.saleReturn.findMany({where:{businessId:u.businessId},include:{sale:{select:{number:true,total:true,createdAt:true}}},orderBy:{createdAt:'desc'},take:100}));}catch(e){return fail(e);}}
+export async function POST(req:Request){try{await mutationGuard(req);const u=await authorize('manage');const branchId=branchOf(u);const v=schema.parse(await req.json());const record=await db.$transaction(async tx=>{
+ const s=await tx.sale.findFirst({where:{id:v.saleId,businessId:u.businessId,branchId},include:{items:true,payments:true,invoice:true,returns:true}});assert(s,'Venta no encontrada.',404);assert(s.status!=='ANULADA','Esta venta ya fue anulada.');assert(s.returns.length===0,'Ya existe una devolución.');assert(s.invoice?.type==='COMERCIAL','Las devoluciones fiscales requieren un procedimiento fiscal autorizado.');
+ for(const item of s.items)if(v.restock){const p=await tx.product.update({where:{id:item.productId},data:{stock:{increment:item.quantity}}});await tx.stockMovement.create({data:{businessId:u.businessId,branchId,userId:u.id,productId:p.id,type:'DEVOLUCION',quantity:item.quantity,previous:p.stock.minus(item.quantity),resulting:p.stock,reference:s.id,note:v.reason}});}
+ if(s.customerId&&s.due.gt(0)){await tx.customer.update({where:{id:s.customerId},data:{balance:{decrement:s.due}}});await tx.creditEntry.create({data:{customerId:s.customerId,businessId:u.businessId,saleId:s.id,type:'ANULACION',amount:s.due.neg(),note:v.reason}});}
+ const refund=s.paid;const ret=await tx.saleReturn.create({data:{businessId:u.businessId,saleId:s.id,reason:v.reason,restored:v.restock,refundAmount:refund,creditCancelled:s.due}});await tx.sale.update({where:{id:s.id},data:{status:'ANULADA'}});
+ const cash=s.payments.filter(p=>p.method==='EFECTIVO').reduce((n,p)=>n.plus(p.amount),money(0));const session=await tx.cashSession.findFirst({where:{userId:u.id,businessId:u.businessId,branchId,status:'ABIERTA'}});if(session&&cash.gt(0))await tx.cashMovement.create({data:{sessionId:session.id,kind:'REEMBOLSO',description:`Devolución ${s.number}`,amount:cash.neg(),reference:ret.id}});return ret;
+ },{isolationLevel:'Serializable'});await audit(u,'ANULAR_VENTA','ventas',v.saleId,{motivo:v.reason});return json(record,201);}catch(e){if(e instanceof z.ZodError)return json({error:e.issues[0]?.message},400);return fail(e);}}
